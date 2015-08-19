@@ -1,3 +1,9 @@
+# Fills
+fills/*
+
+# Python executables
+*.pyc
+
 # Windows image file caches
 Thumbs.db
 ehthumbs.db

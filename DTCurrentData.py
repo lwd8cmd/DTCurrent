@@ -20,11 +20,11 @@ class DTCurrentData(object):
 		self.background = None
 		
 		# valid filter options
-		self.valid_wheels = [-2,-1,0,1,2]
-		self.valid_stations = [1,2,3,4]
-		self.valid_sectors = [1,2,3,4,5,6,7,8,9,10,11,12]
-		self.valid_superlayers = [1,2,3]
-		self.valid_layers = [1,2,3,4]
+		self.valid_wheels = np.array([-2,-1,0,1,2])
+		self.valid_stations = np.array([1,2,3,4])
+		self.valid_sectors = np.array([1,2,3,4,5,6,7,8,9,10,11,12])
+		self.valid_superlayers = np.array([1,2,3])
+		self.valid_layers = np.array([1,2,3,4])
 		self.valid_wires = ["w0", "w1", "cha"]
 		
 		# autoload data if path is specified
