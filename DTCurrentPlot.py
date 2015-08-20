@@ -171,6 +171,67 @@ class DTCurrentPlot(object):
 				.format(place=("cathode" if cathode else "wires"), station=station, sector=sector)
 		self.plot_end(filename=filename, format=format)
 		
+	# draw scatter plot: wheel on x-axis, d(current)/d(luminosity) on y-axis
+	def draw_slope_vs_wheel_superlayers(self, station=4, sector=4, cathode=False, format='png'):
+		plots = 0
+		xss = []
+		for superlayer in self.data.valid_superlayers:
+			xs, ys = self.data.slope_vs_wheel(station=station, sector=sector, superlayer=superlayer, wire=("cha" if cathode else "wires"))
+			if len(ys) == 0 or ys.max() == 0:# unavailable data
+				continue
+				
+			xss.extend(xs)
+			plt.plot(xs, ys*1e6, 'o', label='SL{}w'.format(superlayer))
+			plots += 1
+		
+		if plots == 0:
+			return
+		
+		# labels
+		plt.title('Average {place} Current vs Luminosity\nFill {fill} MB{station}S{sector:02d}' \
+			.format(place=("Cathode" if cathode else "Wire"), fill=self.data.fill, station=station, sector=sector))
+		plt.ylabel(r'$pA / Lumi$')
+		plt.xlim(xmin=self.data.valid_wheels[0]-0.5, xmax=self.data.valid_wheels[-1]+0.5)
+		plt.xticks(self.data.valid_wheels, [('YB{:+d}'.format(wheel) if wheel in xs else '') for wheel in self.data.valid_wheels])
+		plt.grid()
+		plt.legend(loc='best', numpoints=1)
+		
+		# save plot
+		filename = 'slope_vs_wheel_{place}_MB{station}S{sector:02d}' \
+				.format(place=("cathode" if cathode else "wires"), station=station, sector=sector)
+		self.plot_end(filename=filename, format=format)
+		
+	# draw scatter plot: wheel on x-axis, d(current)/d(luminosity) on y-axis
+	def draw_slope_vs_wheel_layers(self, station=4, sector=4, cathode=False, format='png'):
+		plots = 0
+		xss = []
+		for superlayer in self.data.valid_superlayers:
+			for layer in self.data.valid_layers:
+				xs, ys = self.data.slope_vs_wheel(station=station, sector=sector, superlayer=superlayer, layer=layer, wire=("cha" if cathode else "wires"))
+				if len(ys) == 0 or ys.max() == 0:# unavailable data
+					continue
+					
+				xss.extend(xs)
+				plt.plot(xs, ys*1e6, 'o', label='SL{sl} L{l}'.format(sl=superlayer, l=layer))
+				plots += 1
+		
+		if plots == 0:
+			return
+		
+		# labels
+		plt.title('Average {place} Current vs Luminosity\nFill {fill} MB{station}S{sector:02d}' \
+			.format(place=("Cathode" if cathode else "Wire"), fill=self.data.fill, station=station, sector=sector))
+		plt.ylabel(r'$pA / Lumi$')
+		plt.xlim(xmin=self.data.valid_wheels[0]-0.5, xmax=self.data.valid_wheels[-1]+0.5)
+		plt.xticks(self.data.valid_wheels, [('YB{:+d}'.format(wheel) if wheel in xs else '') for wheel in self.data.valid_wheels])
+		plt.grid()
+		plt.legend(loc='best', numpoints=1)
+		
+		# save plot
+		filename = 'slope_vs_wheel_{place}_MB{station}S{sector:02d}' \
+				.format(place=("cathode" if cathode else "wires"), station=station, sector=sector)
+		self.plot_end(filename=filename, format=format)
+		
 	# draw scatter plot: sector on x-axis, max current on y-axis for each superlayer
 	def draw_maxcurrent_vs_sector_superlayers(self, station=1, wheel=0, cathode=False, format='png'):
 		plots = 0
@@ -192,9 +253,10 @@ class DTCurrentPlot(object):
 		plt.grid()
 		
 		# labels
-		plt.title('Maximum {place} Current\nFill {fill} YB{wheel:+d} MB{station}' \
-			.format(place=("Cathode" if cathode else "Wire"), fill=self.data.fill, wheel=wheel, station=station))
-		plt.ylabel(r'$\mu A$')
+		plt.title(r'Maximum {place} Current ($\mu A$)'.format(place=("Cathode" if cathode else "Wire")) \
+			+ '\nFill {fill} YB{wheel:+d} MB{station}' \
+			.format(fill=self.data.fill, wheel=wheel, station=station))
+		#plt.ylabel(r'$\mu A$')
 		plt.xticks(self.data.valid_sectors, [('S{:02d}'.format(sector) if sector in xss else '') for sector in self.data.valid_sectors])
 		plt.legend(loc='upper center', numpoints=1)
 		
@@ -222,8 +284,9 @@ class DTCurrentPlot(object):
 		plt.grid()
 		
 		# labels
-		plt.title('Maximum {place} Current\nFill {fill} MB{station}'.format(place=("Cathode" if cathode else "Wire"), fill=self.data.fill, station=station))
-		plt.ylabel(r'$\mu A$')
+		plt.title(r'Maximum {place} Current ($\mu A$)'.format(place=("Cathode" if cathode else "Wire")) \
+			+'\nFill {fill} MB{station}'.format(fill=self.data.fill, station=station))
+		#plt.ylabel(r'$\mu A$')
 		plt.xticks(self.data.valid_sectors, [('S{:02d}'.format(sector) if sector in xss else '') for sector in self.data.valid_sectors])
 		plt.legend(loc='best', numpoints=1)
 		
@@ -240,9 +303,10 @@ class DTCurrentPlot(object):
 		plt.plot(xs, ys, 'o')
 		
 		# labels
-		plt.title('Maximum {place} Current\nFill {fill} MB{station}S{sector:02d}' \
-			.format(place=("Cathode" if cathode else "Wire"), fill=self.data.fill, station=station, sector=sector))
-		plt.ylabel(r'$\mu A$')
+		plt.title(r'Maximum {place} Current ($\mu A$)'.format(place=("Cathode" if cathode else "Wire")) \
+			+ '\nFill {fill} MB{station}S{sector:02d}' \
+			.format(fill=self.data.fill, station=station, sector=sector))
+		#plt.ylabel(r'$\mu A$')
 		plt.xlim(xmin=self.data.valid_wheels[0]-0.5, xmax=self.data.valid_wheels[-1]+0.5)
 		plt.xticks(self.data.valid_wheels, [('YB{:+d}'.format(wheel) if wheel in xs else '') for wheel in self.data.valid_wheels])
 		plt.grid()
@@ -252,6 +316,38 @@ class DTCurrentPlot(object):
 				.format(place=("cathode" if cathode else "wires"), station=station, sector=sector)
 		self.plot_end(filename=filename, format=format)
 	
+	# draw scatter plot: wheel on x-axis, max current on y-axis
+	def draw_maxcurrent_vs_wheel_superlayers(self, station=4, sector=4, cathode=False, format='png'):
+		plots = 0
+		xss = []
+		for superlayer in [1,2]:
+			xs, ys = self.data.maxcurrent_vs_wheel(station=station, sector=sector, superlayer=superlayer, wire=("cha" if cathode else "wires"))
+			if len(ys) == 0 or ys.max() == 0:# unavailable data
+				continue
+				
+			xss.extend(xs)
+			plt.plot(xs, ys, 'o', label='SL{}w'.format(superlayer))
+			plots += 1
+		
+		if plots == 0:
+			return
+		
+		# labels
+		plt.title(r'Maximum {place} Current ($\mu A$)'.format(place=("Cathode" if cathode else "Wire")) \
+			+ '\nFill {fill} MB{station}S{sector:02d}' \
+			.format(fill=self.data.fill, station=station, sector=sector))
+		#plt.ylabel(r'$\mu A$')
+		plt.xlim(xmin=self.data.valid_wheels[0]-0.5, xmax=self.data.valid_wheels[-1]+0.5)
+		plt.xticks(self.data.valid_wheels, [('YB{:+d}'.format(wheel) if wheel in xs else '') for wheel in self.data.valid_wheels])
+		plt.grid()
+		plt.legend()
+		
+		# save plot
+		filename = 'maxcurrent_vs_wheel_{place}_MB{station}S{sector:02d}' \
+				.format(place=("cathode" if cathode else "wires"), station=station, sector=sector)
+		self.plot_end(filename=filename, format=format)
+	
+		
 	# draw 2d plot with colormap: 	
 	def draw_slope_2d(self, station=4, cathode=False, format='png'):
 		values = []
