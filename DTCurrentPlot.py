@@ -9,350 +9,168 @@ import numpy as np
 class DTCurrentPlot(object):
 	def __init__(self, path=''):
 		self.load_data(path)
+		
 		#self.plot_data()
 	
 	# load files
 	def load_data(self, path):
 		self.path = path
 		self.data = DTCurrentData.DTCurrentData(self.path)
+		self.args = {'luminosity': [1], 'wheel': self.data.wheels, 'station': self.data.stations, 'sector': self.data.sectors, 'superlayer': self.data.valid_superlayers, 'layer': self.data.valid_layers, 'wire': self.data.valid_wires}
+		self.labels = {'wheel': 'YB{:+d}', 'station': 'MB{}', 'sector': 'S{:02d}', 'superlayer': 'SL{}', 'layer': 'L{}', 'wire': '{}'}
+		self.keywords = ['wheel', 'station', 'sector', 'superlayer', 'layer', 'wire']
 		
 	# plot data
 	def plot_data(self):
-		for cathode in [False, True]:
-			for station in self.data.stationes:
-				self.draw_slope_vs_sector_wheels(station=station, cathode=cathode)
-				self.draw_maxcurrent_vs_sector_wheels(station=station, cathode=cathode)
+		for wire in ['wires', 'cathode']:
+			for station in self.data.stations:
+				self.draw(y='slope', x='sector', series='wheel', station=station, wire=wire)
+				self.draw(y='maxcurrent', x='sector', series='wheel', station=station, wire=wire)
 				for wheel in self.data.wheels:
-					self.draw_slope_vs_sector_superlayers(wheel=wheel, station=station, cathode=cathode)
-					self.draw_maxcurrent_vs_sector_superlayers(wheel=wheel, station=station, cathode=cathode)
+					self.draw(y='slope', x='sector', series='superlayer', wheel=wheel, station=station, wire=wire)
+					self.draw(y='maxcurrent', x='sector', series='superlayer', wheel=wheel, station=station, wire=wire)
 					for sector in self.data.sectors:
-						self.draw_current_vs_lumi(wheel=wheel, station=station, sector=sector, cathode=cathode)
-		self.draw_slope_vs_wheel(station=4, sector=4)
-		self.draw_maxcurrent_vs_wheel(station=4, sector=4)
+						self.draw(y='current', x='luminosity', series='superlayer', wheel=wheel, station=station, sector=sector, wire=wire)
+		self.draw(y='slope', x='wheel', series='superlayer', station=station, sector=4)
+		self.draw(y='maxcurrent', x='wheel', series='superlayer', station=station, sector=4)
+		self.draw_slope_2d(station=4)
 		
-	# draw line plot: luminosity on x-axis, current on y-axis. With linear regression
-	def draw_current_vs_lumi(self, wheel=0, station=1, sector=4, cathode=False, format='png'):
-		colors = 'rgb'
-		plots = 0
-		ymax = 0
-		for superlayer in self.data.valid_superlayers:
-			# filter data
-			kwargs = dict(wheel=wheel, station=station, sector=sector, superlayer=superlayer, wire=("cha" if cathode else "wires"))
-			
-			slope = self.data.slope(**kwargs)
-			if slope == 0:# unavailable data or constant values
-				continue
-			
-			plots += 1
-			xs, ys = self.data.current_vs_lumi(**kwargs)
-			_ymax = ys.max()
-			ymax = max(ymax, _ymax)
-			# plot data
-			plt.plot(xs, ys, '.', c=colors[superlayer-1], label='SL{}w'.format(superlayer))
-			
-			# plot fit
-			xs, ys = self.data.current_vs_lumi_fit(**kwargs)
-			plt.plot(xs, ys, '--', c=colors[superlayer-1], label='{:.2f} pA/Lumi'.format(slope*1e6))
+	def build_filterargs(self, filters={}):
+		return dict(
+			wheel=filters['wheel'] if 'wheel' in filters else None, \
+			station=filters['station'] if 'station' in filters else None, \
+			sector=filters['sector'] if 'sector' in filters else None, \
+			superlayer=filters['superlayer'] if 'superlayer' in filters else None, \
+			layer=filters['layer'] if 'layer' in filters else None, \
+			wire=filters['wire'] if 'wire' in filters else 'wires')
 		
-		if plots == 0:
-			return
-			
-		# limits
-		plt.xlim(xmin=0)
-		plt.ylim(ymin=0, ymax=ymax*1.3)
-		plt.grid()
+	def getdata(self, x, y, filters={}):
+		func = {'slope': self.data.slope, 'maxcurrent': self.data.maxcurrent}
+
+		xs = []
+		ys = []
 		
-		# plot labels
-		plt.title('Average {place} Current vs Luminosity\nFill {fill} YB{wheel:+d} MB{station}S{sector:02d}' \
-			.format(place=("Cathode" if cathode else "Wire"), fill=self.data.fill, **kwargs))
-		plt.xlabel(r'Instantaneous Luminosity ($\mu barn^{-1} \cdot s^{-1}$)')
-		plt.ylabel(r'Current ($\mu A$)')
-		
-		plt.legend(loc='upper center', ncol=plots, frameon=False, numpoints=1)
-		
-		# save plot
-		filename = 'current_vs_lumi_{place}_YB{wheel:+d}_MB{station}S{sector:02d}' \
-			.format(place=("cathode" if cathode else "wires"), **kwargs)
-		self.plot_end(filename=filename, format=format)
-		
-	# draw scatter plot: sector on x-axis, d(current)/d(luminosity) on y-axis for each superlayer
-	def draw_slope_vs_sector_superlayers(self, wheel=0, station=1, cathode=False, format='png'):
-		plots = 0
-		xss = []
-		for superlayer in self.data.valid_superlayers:
-			xs, ys = self.data.slope_vs_sector(wheel=wheel, station=station, superlayer=superlayer, wire=("cha" if cathode else "wires"))
-			if len(ys) == 0 or ys.max() == 0:# unavailable data
-				continue
+		for arg in self.args[x]:
+			filters[x] = arg
+			val = func[y](**self.build_filterargs(filters))
 				
-			xss.extend(xs)
-			plt.plot(xs, ys*1e6, 'o', label='SL{}w'.format(superlayer))
-			plots += 1
-		
-		if plots == 0:
-			return
-			
-		xss = np.array(xss)
-		smin = xss.min()
-		smax = xss.max()
-		_s = self.data.valid_sectors
-		sectors = _s[(_s>=smin)*(_s<=smax)]
-			
-		# axes limits, ticks
-		plt.xlim(xmin=smin-0.5, xmax=smax+0.5)
-		plt.grid()
-		
-		# labels
-		plt.title('Average {place} Current vs Luminosity\nFill {fill} YB{wheel:+d} MB{station}' \
-			.format(place=("Cathode" if cathode else "Wire"), fill=self.data.fill, wheel=wheel, station=station))
-		plt.ylabel(r'$pA / Lumi$')
-		plt.xticks(sectors, [('S{:02d}'.format(sector) if sector in xss else '') for sector in sectors])
-		plt.legend(loc='upper center', numpoints=1)
-		
-		# save plot
-		filename = 'slope_vs_sector_{place}_YB{wheel:+d}_MB{station}' \
-			.format(place=("cathode" if cathode else "wires"), wheel=wheel, station=station)
-		self.plot_end(filename=filename, format=format)
-		
-	# draw scatter plot: sector on x-axis, d(current)/d(luminosity) on y-axis for each wheel	
-	def draw_slope_vs_sector_wheels(self, station=4, cathode=False, format='png'):
-		plots = 0
-		xss = []
-		for wheel in self.data.wheels:
-			xs, ys = self.data.slope_vs_sector(wheel=wheel, station=station, wire=("cha" if cathode else "wires"))
-			if ys.max() == 0:# unavailable data
-				continue
-			xss.extend(xs)
-			plt.plot(xs, ys*1e6, 'o', label='YB{:+d}'.format(wheel))
-			plots += 1
-		
-		if plots == 0:
-			return
-			
-		xss = np.array(xss)
-		smin = xss.min()
-		smax = xss.max()
-		_s = self.data.valid_sectors
-		sectors = _s[(_s>=smin)*(_s<=smax)]
-			
-		# axes limits
-		plt.xlim(xmin=smin-0.5, xmax=smax+0.5)
-		plt.grid()
-		
-		# labels
-		plt.title('Average {place} Current vs Luminosity\nFill {fill} MB{station}' \
-			.format(place=("Cathode" if cathode else "Wire"), fill=self.data.fill, station=station))
-		plt.ylabel(r'$pA / Lumi$')
-		plt.xticks(sectors, [('S{:02d}'.format(sector) if sector in xss else '') for sector in sectors])
-		plt.legend(loc='best', numpoints=1)
-		
-		# save plot
-		filename = 'slope_vs_sector_{place}_MB{station}' \
-			.format(place=("cathode" if cathode else "wires"), station=station)
-		self.plot_end(filename=filename, format=format)
-			
-	# draw scatter plot: wheel on x-axis, d(current)/d(luminosity) on y-axis
-	def draw_slope_vs_wheel(self, station=4, sector=4, cathode=False, format='png'):
-		xs, ys = self.data.slope_vs_wheel(station=station, sector=sector, wire=("cha" if cathode else "wires"))
-		if ys.max() == 0:# unavailable data
-			return
-		
-		plt.plot(xs, ys*1e6, 'o')
-		
-		# labels
-		plt.title('Average {place} Current vs Luminosity\nFill {fill} MB{station}S{sector:02d}' \
-			.format(place=("Cathode" if cathode else "Wire"), fill=self.data.fill, station=station, sector=sector))
-		plt.ylabel(r'$pA / Lumi$')
-		plt.xlim(xmin=self.data.valid_wheels[0]-0.5, xmax=self.data.valid_wheels[-1]+0.5)
-		plt.xticks(self.data.valid_wheels, [('YB{:+d}'.format(wheel) if wheel in xs else '') for wheel in self.data.valid_wheels])
-		plt.grid()
-		
-		# save plot
-		filename = 'slope_vs_wheel_{place}_MB{station}S{sector:02d}' \
-				.format(place=("cathode" if cathode else "wires"), station=station, sector=sector)
-		self.plot_end(filename=filename, format=format)
-		
-	# draw scatter plot: wheel on x-axis, d(current)/d(luminosity) on y-axis
-	def draw_slope_vs_wheel_superlayers(self, station=4, sector=4, cathode=False, format='png'):
-		plots = 0
-		xss = []
-		for superlayer in self.data.valid_superlayers:
-			xs, ys = self.data.slope_vs_wheel(station=station, sector=sector, superlayer=superlayer, wire=("cha" if cathode else "wires"))
-			if len(ys) == 0 or ys.max() == 0:# unavailable data
-				continue
+			if val > 0:
+				xs.append(arg)
+				ys.append(val)
 				
-			xss.extend(xs)
-			plt.plot(xs, ys*1e6, 'o', label='SL{}w'.format(superlayer))
-			plots += 1
+		return (np.array(xs), np.array(ys)*(1e6 if y=='slope' else 1))
 		
-		if plots == 0:
-			return
+	def draw(self, x='sector', y='slope', series=None, format='png', wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='wires'):	
+		filters = {'wheel':wheel, 'station':station, 'sector':sector, 'superlayer':superlayer, 'layer':layer, 'wire':wire}
+		colors = 'rgbcymk'
 		
-		# labels
-		plt.title('Average {place} Current vs Luminosity\nFill {fill} MB{station}S{sector:02d}' \
-			.format(place=("Cathode" if cathode else "Wire"), fill=self.data.fill, station=station, sector=sector))
-		plt.ylabel(r'$pA / Lumi$')
-		plt.xlim(xmin=self.data.valid_wheels[0]-0.5, xmax=self.data.valid_wheels[-1]+0.5)
-		plt.xticks(self.data.valid_wheels, [('YB{:+d}'.format(wheel) if wheel in xs else '') for wheel in self.data.valid_wheels])
-		plt.grid()
-		plt.legend(loc='best', numpoints=1)
-		
-		# save plot
-		filename = 'slope_vs_wheel_{place}_MB{station}S{sector:02d}' \
-				.format(place=("cathode" if cathode else "wires"), station=station, sector=sector)
-		self.plot_end(filename=filename, format=format)
-		
-	# draw scatter plot: wheel on x-axis, d(current)/d(luminosity) on y-axis
-	def draw_slope_vs_wheel_layers(self, station=4, sector=4, cathode=False, format='png'):
-		plots = 0
 		xss = []
-		for superlayer in self.data.valid_superlayers:
-			for layer in self.data.valid_layers:
-				xs, ys = self.data.slope_vs_wheel(station=station, sector=sector, superlayer=superlayer, layer=layer, wire=("cha" if cathode else "wires"))
-				if len(ys) == 0 or ys.max() == 0:# unavailable data
-					continue
+		plots = 0
+		if series is None:
+			if y == 'current':
+				kwargs = self.build_filterargs(filters)
 					
-				xss.extend(xs)
-				plt.plot(xs, ys*1e6, 'o', label='SL{sl} L{l}'.format(sl=superlayer, l=layer))
+				slope = self.data.slope(**kwargs)
+				if slope == 0:# unavailable data or constant values
+					print('unavailable data')
+					return
+				
+				xs, ys = self.data.current_vs_lumi(**kwargs)
+				plt.plot(xs, ys, '.', c=colors[0], label='current')
+				
+				xs, ys = self.data.current_vs_lumi_fit(**kwargs)
+				plt.plot(xs, ys, '--', c=colors[0], label='{:.2f} pA/Lumi'.format(slope*1e6))
+				
+				plt.legend(loc='upper center', ncol=1, frameon=False, numpoints=1)
+			else:
+				xs, ys = self.getdata(x=x, y=y, filters=filters)
+			
+				if len(xs) == 0:
+					print("unavailable data")
+					return
+				
+				xss = xs
+				plt.plot(xs, ys, 'o')
+		else:
+			
+			for arg_nr, arg in enumerate(self.args[series]):
+				filters[series] = arg
+				
+				if y == 'current':
+					kwargs = self.build_filterargs(filters)
+					
+					slope = self.data.slope(**kwargs)
+					if slope == 0:# unavailable data or constant values
+						continue
+					
+					xs, ys = self.data.current_vs_lumi(**kwargs)
+					plt.plot(xs, ys, '.', c=colors[arg_nr], label=self.labels[series].format(arg))
+					
+					xs, ys = self.data.current_vs_lumi_fit(**kwargs)
+					plt.plot(xs, ys, '--', c=colors[arg_nr], label='{:.2f} pA/Lumi'.format(slope*1e6))
+				else:
+					xs, ys = self.getdata(x=x, y=y, filters=filters)
+						
+					if len(ys) == 0 or ys.max() == 0:# unavailable data
+						continue
+						
+					xss.extend(xs)
+					plt.plot(xs, ys, 'o', label=self.labels[series].format(arg))
 				plots += 1
-		
-		if plots == 0:
-			return
-		
-		# labels
-		plt.title('Average {place} Current vs Luminosity\nFill {fill} MB{station}S{sector:02d}' \
-			.format(place=("Cathode" if cathode else "Wire"), fill=self.data.fill, station=station, sector=sector))
-		plt.ylabel(r'$pA / Lumi$')
-		plt.xlim(xmin=self.data.valid_wheels[0]-0.5, xmax=self.data.valid_wheels[-1]+0.5)
-		plt.xticks(self.data.valid_wheels, [('YB{:+d}'.format(wheel) if wheel in xs else '') for wheel in self.data.valid_wheels])
-		plt.grid()
-		plt.legend(loc='best', numpoints=1)
-		
-		# save plot
-		filename = 'slope_vs_wheel_{place}_MB{station}S{sector:02d}' \
-				.format(place=("cathode" if cathode else "wires"), station=station, sector=sector)
-		self.plot_end(filename=filename, format=format)
-		
-	# draw scatter plot: sector on x-axis, max current on y-axis for each superlayer
-	def draw_maxcurrent_vs_sector_superlayers(self, station=1, wheel=0, cathode=False, format='png'):
-		plots = 0
-		xss = []
-		for superlayer in self.data.valid_superlayers:
-			xs, ys = self.data.maxcurrent_vs_sector(wheel=wheel, station=station, superlayer=superlayer, wire=("cha" if cathode else "wires"))
-			if len(ys) == 0 or ys.max() == 0:# unavailable data
-				continue
-				
-			xss.extend(xs)
-			plt.plot(xs, ys, 'o', label='SL{}w'.format(superlayer))
-			plots += 1
-		
-		if plots == 0:
-			return
 			
-		# axes limits
-		plt.xlim(xmin=0.5, xmax=12.5)
-		plt.grid()
-		
-		# labels
-		plt.title(r'Maximum {place} Current ($\mu A$)'.format(place=("Cathode" if cathode else "Wire")) \
-			+ '\nFill {fill} YB{wheel:+d} MB{station}' \
-			.format(fill=self.data.fill, wheel=wheel, station=station))
-		#plt.ylabel(r'$\mu A$')
-		plt.xticks(self.data.valid_sectors, [('S{:02d}'.format(sector) if sector in xss else '') for sector in self.data.valid_sectors])
-		plt.legend(loc='upper center', numpoints=1)
-		
-		# save plot
-		filename = 'maxcurrent_vs_sector_{place}_YB{wheel:+d}_MB{station}' \
-			.format(place=("cathode" if cathode else "wires"), wheel=wheel, station=station)
-		self.plot_end(filename=filename, format=format)
+			if plots == 0:
+				print('Unavailable data')
+				return
 				
-	# draw scatter plot: sector on x-axis, max current on y-axis for each wheel
-	def draw_maxcurrent_vs_sector_wheels(self, station=1, cathode=False, format='png'):
-		plots = 0
-		xss = []
-		for wheel in self.data.wheels:
-			xs, ys = self.data.maxcurrent_vs_sector(wheel=wheel, station=station, wire=("cha" if cathode else "wires"))
-			if ys.max() == 0:# data unavailable
-				continue
-			xss.extend(xs)
-			plt.plot(xs, ys, 'o', label='YB{:+d}'.format(wheel))
-			plots += 1
-		
-		if plots == 0:
-			return
-		# axes limits
-		plt.xlim(xmin=self.data.valid_sectors[0]-0.5, xmax=self.data.valid_sectors[-1]+0.5)
-		plt.grid()
-		
-		# labels
-		plt.title(r'Maximum {place} Current ($\mu A$)'.format(place=("Cathode" if cathode else "Wire")) \
-			+'\nFill {fill} MB{station}'.format(fill=self.data.fill, station=station))
-		#plt.ylabel(r'$\mu A$')
-		plt.xticks(self.data.valid_sectors, [('S{:02d}'.format(sector) if sector in xss else '') for sector in self.data.valid_sectors])
-		plt.legend(loc='best', numpoints=1)
-		
-		# save plot
-		filename = 'maxcurrent_vs_sector_{place}_MB{station}'.format(place=("cathode" if cathode else "wires"), station=station)
-		self.plot_end(filename=filename, format=format)
+			xss = np.unique(xss)
+			if y == 'current':
+				plt.legend(loc='upper center', ncol=plots, frameon=False, numpoints=1)
+			else:
+				plt.legend(loc='best', numpoints=1)
 			
-	# draw scatter plot: wheel on x-axis, max current on y-axis
-	def draw_maxcurrent_vs_wheel(self, station=4, sector=4, cathode=False, format='png'):
-		xs, ys = self.data.maxcurrent_vs_wheel(station=station, sector=sector, wire=("cha" if cathode else "wires"))
-		if ys.max() == 0:# data unavailable
-			return
-		
-		plt.plot(xs, ys, 'o')
+		# filename
+		filename = y + '_vs_' + x
+		if series is not None:
+			filename += '_every_' + series
 		
 		# labels
-		plt.title(r'Maximum {place} Current ($\mu A$)'.format(place=("Cathode" if cathode else "Wire")) \
-			+ '\nFill {fill} MB{station}S{sector:02d}' \
-			.format(fill=self.data.fill, station=station, sector=sector))
-		#plt.ylabel(r'$\mu A$')
-		plt.xlim(xmin=self.data.valid_wheels[0]-0.5, xmax=self.data.valid_wheels[-1]+0.5)
-		plt.xticks(self.data.valid_wheels, [('YB{:+d}'.format(wheel) if wheel in xs else '') for wheel in self.data.valid_wheels])
+		if y == 'slope':
+			title = 'Average {place} Current vs Luminosity'.format(place=wire)
+		elif y == 'maxcurrent':
+			title = r'Maximum {place} Current ($\mu A$)'.format(place=wire)
+		elif y == 'current':
+			title = 'Average {place} Current vs Luminosity'.format(place=wire)
+		title += '\nFill {fill}'.format(fill=self.data.fill)
+		
+		# build filename and labels based on a filter
+		for keyword in self.keywords:
+			if not (x==keyword or y==keyword or series==keyword) and filters[keyword] is not None:
+				title += ' ' + self.labels[keyword].format(filters[keyword])
+				filename += '_' + self.labels[keyword].format(filters[keyword])
+		
+		plt.title(title)
+		
+		# axes labels
+		if y == 'slope':
+			plt.ylabel(r'$pA / Lumi$')
+		elif y == 'current':
+			plt.xlabel(r'Instantaneous Luminosity ($\mu barn^{-1} \cdot s^{-1}$)')
+			plt.ylabel(r'Current ($\mu A$)')
+		
+		if x is not 'luminosity':
+			plt.xlim(xmin=xss.min()-0.5, xmax=xss.max()+0.5)
+			plt.xticks(xss, [self.labels[x].format(_x) for _x in xss])
+		
 		plt.grid()
 		
 		# save plot
-		filename = 'maxcurrent_vs_wheel_{place}_MB{station}S{sector:02d}' \
-				.format(place=("cathode" if cathode else "wires"), station=station, sector=sector)
 		self.plot_end(filename=filename, format=format)
-	
-	# draw scatter plot: wheel on x-axis, max current on y-axis
-	def draw_maxcurrent_vs_wheel_superlayers(self, station=4, sector=4, cathode=False, format='png'):
-		plots = 0
-		xss = []
-		for superlayer in [1,2]:
-			xs, ys = self.data.maxcurrent_vs_wheel(station=station, sector=sector, superlayer=superlayer, wire=("cha" if cathode else "wires"))
-			if len(ys) == 0 or ys.max() == 0:# unavailable data
-				continue
-				
-			xss.extend(xs)
-			plt.plot(xs, ys, 'o', label='SL{}w'.format(superlayer))
-			plots += 1
-		
-		if plots == 0:
-			return
-		
-		# labels
-		plt.title(r'Maximum {place} Current ($\mu A$)'.format(place=("Cathode" if cathode else "Wire")) \
-			+ '\nFill {fill} MB{station}S{sector:02d}' \
-			.format(fill=self.data.fill, station=station, sector=sector))
-		#plt.ylabel(r'$\mu A$')
-		plt.xlim(xmin=self.data.valid_wheels[0]-0.5, xmax=self.data.valid_wheels[-1]+0.5)
-		plt.xticks(self.data.valid_wheels, [('YB{:+d}'.format(wheel) if wheel in xs else '') for wheel in self.data.valid_wheels])
-		plt.grid()
-		plt.legend()
-		
-		# save plot
-		filename = 'maxcurrent_vs_wheel_{place}_MB{station}S{sector:02d}' \
-				.format(place=("cathode" if cathode else "wires"), station=station, sector=sector)
-		self.plot_end(filename=filename, format=format)
-	
 		
 	# draw 2d plot with colormap: 	
-	def draw_slope_2d(self, station=4, cathode=False, format='png'):
+	def draw_slope_2d(self, station=4, wire='wires', format='png'):
 		values = []
 		for wheel in self.data.wheels:
-			values.append([self.data.slope(wheel=wheel, sector=sector) for sector in self.data.sectors])
+			values.append([self.data.slope(wheel=wheel, sector=sector, wire=wire) for sector in self.data.sectors])
 		values = np.array(values) * 1e6
 		
 		fig, ax = plt.subplots()
@@ -361,15 +179,15 @@ class DTCurrentPlot(object):
 		fig.colorbar(im)
 		
 		# labels
-		ax.xaxis.set(ticks=np.arange(len(self.data.sectors))+0.5, ticklabels=['S{}'.format(sector) for sector in self.data.sectors])
-		ax.yaxis.set(ticks=np.arange(len(self.data.wheels))+0.5, ticklabels=['YB{:+d}'.format(wheel) for wheel in self.data.wheels][::-1])
+		ax.xaxis.set(ticks=np.arange(len(self.data.sectors))+0.5, ticklabels=[self.labels['sector'].format(sector) for sector in self.data.sectors])
+		ax.yaxis.set(ticks=np.arange(len(self.data.wheels))+0.5, ticklabels=[self.labels['wheel'].format(wheel) for wheel in self.data.wheels][::-1])
 		#plt.xlabel('Sector')
 		#plt.ylabel('Wheel')
 		plt.title(r'Fill {fill} MB{station} slope $pA \cdot \mu barn \cdot s$'.format(fill=self.data.fill, station=station))
 		
 		# save plot
-		filename = 'slope2d_{place}_MB{station}' \
-				.format(place=("cathode" if cathode else "wires"), station=station)
+		filename = 'slope2d_{wire}_MB{station}' \
+				.format(wire=wire, station=station)
 		self.plot_end(filename=filename, format=format)
 		
 	# show or save plot

@@ -9,7 +9,7 @@ plt.plot(xs, ys, '.')
 plt.show()
 
 # available filters
-xs, ys = data.current_vs_lumi(wheel=2, station=4, sector=4, superlayer=1, layer=1, wire='w0')
+xs, ys = data.current_vs_lumi(wheel=2, station=4, sector=4, superlayer=1, layer=1, wire='wire0')
 plt.plot(xs, ys, '.')
 plt.show()
 
