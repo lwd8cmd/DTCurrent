@@ -1,7 +1,7 @@
-import DTCurrentPlot
+from DTCurrentPlot import *
 
 # import data
-plot = DTCurrentPlot.DTCurrentPlot('fills/3992/')
+plot = DTCurrentPlot('fills/3992/')
 
 # draw plots
 plot.draw(y='current', x='luminosity', series='superlayer', wheel=1, station=4, sector=4, format=None)

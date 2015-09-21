@@ -50,19 +50,22 @@ class DTCurrentData(object):
 		# check which wheels, stations and sectors files have been found
 		wheels = []
 		for wheel in self.valid_wheels:
-			if self.get(wheel=wheel).max() > 0:
+			_r = self.get(wheel=wheel)
+			if _r is not None and _r.max() > 0:
 				wheels.append(wheel)
 		self.wheels = np.array(wheels)
 				
 		stations = []
 		for station in self.valid_stations:
-			if self.get(station=station).max() > 0:
+			_r = self.get(station=station)
+			if _r is not None and _r.max() > 0:
 				stations.append(station)
 		self.stations = np.array(stations)
 				
 		sectors = []
 		for sector in self.valid_sectors:
-			if self.get(sector=sector).max() > 0:
+			_r = self.get(sector=sector)
+			if _r is not None and _r.max() > 0:
 				sectors.append(sector)
 		self.sectors = np.array(sectors)
 			
@@ -135,7 +138,7 @@ class DTCurrentData(object):
 		
 		# create array to hold ALL files data
 		if self.currents is None:
-			shape = (wheels, stations, sectors, superlayers, layers, wires, rows + 1)
+			shape = (wheels, stations, sectors, superlayers, layers, wires, rows)
 			self.currents = np.ma.array(np.zeros(shape, dtype=np.float), mask=True)
 			self.background = np.ma.array(np.zeros(shape, dtype=np.float), mask=True)
 			self.luminosity = luminosity
@@ -143,16 +146,17 @@ class DTCurrentData(object):
 		# insert this chamber data to global current data
 		if station == 4:
 			superlayers -= 1
+		rows = min(rows, self.currents.shape[6])
 		shape = (superlayers, layers, wires, rows)
-		self.currents[wheel+2, station-1, sector-1, :superlayers, :, :, :rows] = currents.T.reshape(shape)
+		self.currents[wheel+2, station-1, sector-1, :superlayers, :, :, :rows] = currents[:rows].T.reshape(shape)
 		self.background[wheel+2, station-1, sector-1, :superlayers, :, :, :rows] = np.tile(background, rows).reshape((-1,len(background))).T.reshape(shape)
 		
 	# get mean values using specified filters
-	def get(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='ws', fit=None, get_slope=None, background=False):
+	def get(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='wires', fit=None, get_slope=None, background=False):
 		if not self.loaded:
 			print("Data file is not loaded")
 			return
-			
+		background=True	
 		# subtract background (default) or use original values
 		if background:
 			c = self.currents
@@ -217,9 +221,6 @@ class DTCurrentData(object):
 			print("wire value should be wire0|wire1|wires|cathode")
 			return
 		
-		# remove last value (original tensor has one row more than first file if some other file has more rows)
-		c = c[:-1]
-		
 		# linear regression
 		if fit or get_slope:
 			# fit only values above 0 (useful in cathode plots, where current vs lumi goes like 0000001234)
@@ -248,47 +249,47 @@ class DTCurrentData(object):
 		return c
 		
 	# return slope: d(current)/d(luminosity)
-	def slope(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='ws'):
+	def slope(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='wires'):
 		return self.get(wheel=wheel, station=station, sector=sector, superlayer=superlayer, layer=layer, wire=wire, get_slope=1)
 		
 	# return max current
-	def maxcurrent(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='ws'):
+	def maxcurrent(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='wires'):
 		return self.get(wheel=wheel, station=station, sector=sector, superlayer=superlayer, layer=layer, wire=wire, background=True).max()
 		
 	# return current for each luminosity
-	def current_vs_lumi(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='ws'):
+	def current_vs_lumi(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='wires'):
 		xs = self.luminosity
 		ys = self.get(wheel=wheel, station=station, sector=sector, superlayer=superlayer, layer=layer, wire=wire)
 		return (xs, ys)
 		
 	# return fitted current for each luminosity
-	def current_vs_lumi_fit(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='ws'):
+	def current_vs_lumi_fit(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='wires'):
 		xs = self.luminosity
 		ys = self.get(wheel=wheel, station=station, sector=sector, superlayer=superlayer, layer=layer, wire=wire, fit=1)
 		return (xs, ys)
 		
 	# return slope for each wheel
-	def slope_vs_wheel(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='ws'):
+	def slope_vs_wheel(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='wires'):
 		ys = [self.slope(wheel=wheel, station=station, sector=sector, superlayer=superlayer, layer=layer, wire=wire) for wheel in self.wheels]
 		return (self.wheels, np.array(ys))
 	
 	# return max current for each wheel
-	def maxcurrent_vs_wheel(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='ws'):
+	def maxcurrent_vs_wheel(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='wires'):
 		ys = [self.maxcurrent(wheel=wheel, station=station, sector=sector, superlayer=superlayer, layer=layer, wire=wire) for wheel in self.wheels]
 		return (self.wheels, np.array(ys))
 		
 	# return slope for each station
-	def slope_vs_station(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='ws'):
+	def slope_vs_station(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='wires'):
 		ys = [self.slope(wheel=wheel, station=station, sector=sector, superlayer=superlayer, layer=layer, wire=wire) for station in self.stations]
 		return (self.stations, np.array(ys))
 		
 	# return max current for each station
-	def maxcurrent_vs_station(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='ws'):
+	def maxcurrent_vs_station(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='wires'):
 		ys = [self.maxcurrent(wheel=wheel, station=station, sector=sector, superlayer=superlayer, layer=layer, wire=wire) for station in self.stations]
 		return (self.stations, np.array(ys))
 		
 	# return slope for each sector
-	def slope_vs_sector(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='ws'):
+	def slope_vs_sector(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='wires'):
 		xs = []
 		ys = []
 		for sector in self.sectors:
@@ -299,7 +300,7 @@ class DTCurrentData(object):
 		return (np.array(xs), np.array(ys))
 		
 	# return max current for each sector
-	def maxcurrent_vs_sector(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='ws'):
+	def maxcurrent_vs_sector(self, wheel=None, station=None, sector=None, superlayer=None, layer=None, wire='wires'):
 		xs = []
 		ys = []
 		for sector in self.sectors:

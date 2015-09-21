@@ -14,7 +14,7 @@ class DTCurrentPlot(object):
 	
 	# load files
 	def load_data(self, path):
-		self.path = path
+		self.path = path.rstrip('/')+'/'
 		self.data = DTCurrentData.DTCurrentData(self.path)
 		self.args = {'luminosity': [1], 'wheel': self.data.wheels, 'station': self.data.stations, 'sector': self.data.sectors, 'superlayer': self.data.valid_superlayers, 'layer': self.data.valid_layers, 'wire': self.data.valid_wires}
 		self.labels = {'wheel': 'YB{:+d}', 'station': 'MB{}', 'sector': 'S{:02d}', 'superlayer': 'SL{}', 'layer': 'L{}', 'wire': '{}'}
@@ -72,7 +72,7 @@ class DTCurrentPlot(object):
 					
 				slope = self.data.slope(**kwargs)
 				if slope == 0:# unavailable data or constant values
-					print('unavailable data')
+					print('unavailable data, args: ', kwargs)
 					return
 				
 				xs, ys = self.data.current_vs_lumi(**kwargs)
@@ -86,13 +86,12 @@ class DTCurrentPlot(object):
 				xs, ys = self.getdata(x=x, y=y, filters=filters)
 			
 				if len(xs) == 0:
-					print("unavailable data")
+					print('unavailable data, args: ', x, y, filters)
 					return
 				
 				xss = xs
 				plt.plot(xs, ys, 'o')
 		else:
-			
 			for arg_nr, arg in enumerate(self.args[series]):
 				filters[series] = arg
 				
