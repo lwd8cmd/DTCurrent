@@ -156,7 +156,7 @@ class DTCurrentData(object):
 		if not self.loaded:
 			print("Data file is not loaded")
 			return
-		background=True	
+		
 		# subtract background (default) or use original values
 		if background:
 			c = self.currents
